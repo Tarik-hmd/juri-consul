@@ -1,0 +1,40 @@
+name: jury-consule
+
+services:
+  # Development database only. Production uses a managed Postgres
+  # (sslmode=require); this service must never be exposed publicly.
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    # Bound to loopback: the DB is reachable only from this host.
+    ports:
+      - "127.0.0.1:5432:5432"
+    environment:
+      POSTGRES_USER: app_user
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env (dev-only value)}
+      POSTGRES_DB: jury_consule
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app_user -d jury_consule"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Portable app container (used for the later shared-hosting path and for
+  # prod-like local runs; Netlify V1 deploys from git instead).
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:3000:3000"
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://app_user:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/jury_consule
+
+volumes:
+  pgdata:

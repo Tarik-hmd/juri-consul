@@ -1,0 +1,40 @@
+# Netlify deployment (V1 target). Must stay in sync with the security
+# headers defined in next.config.ts — the edge headers below apply to
+# static/CDN responses, the Next.js headers() apply to SSR responses.
+# (Phase 18 evaluated a nonce-based CSP and skipped it — see D36 — so the
+# static skeleton below stays the policy on both targets.)
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+[build.environment]
+  NODE_VERSION = "24"
+  # Secrets scanner would otherwise fail the build on non-secret config
+  # values that legitimately live in code/defaults/docs (public app URL,
+  # model id, log level, webhook URL). Real credentials stay scanned.
+  SECRETS_SCAN_OMIT_KEYS = "APP_URL,GROQ_MODEL,LOG_LEVEL,N8N_FIRST_MESSAGE_WEBHOOK,FORM_SUBMITTED_WEBHOOK,RESPOND_EMAIL_WEBHOOK,WHATSAPP_NUMBER"
+  # NOTE: no [functions] timeout override — this build image rejects
+  # `timeout` there ("must be an object"), so generation speed comes from
+  # low reasoning effort instead (see src/lib/ai/groq.ts).
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "DENY"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=()"
+    Cross-Origin-Opener-Policy = "same-origin"
+    Cross-Origin-Resource-Policy = "same-origin"
+    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data:; font-src 'self' https://fonts.gstatic.com; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests"
+    Strict-Transport-Security = "max-age=63072000; includeSubDomains; preload"
+
+[[headers]]
+  for = "/admin/*"
+  [headers.values]
+    Cache-Control = "no-store, must-revalidate"
+
+[[headers]]
+  for = "/api/internal/*"
+  [headers.values]
+    Cache-Control = "no-store, must-revalidate"
